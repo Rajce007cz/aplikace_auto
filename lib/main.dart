@@ -76,8 +76,16 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _nactiPrvniAuto() async {
-    // Aplikace si při startu sáhne do databáze pro 1 auto
-    final query = await FirebaseFirestore.instance.collection('auta').limit(1).get();
+    // Získáme tvé UID
+    String? mojeUid = FirebaseAuth.instance.currentUser?.uid;
+    if (mojeUid == null) return; // Pojistka, kdyby náhodou nebyl uživatel přihlášený
+
+    // UPRAVENO: Sáhneme do databáze pro 1 TVOJE auto
+    final query = await FirebaseFirestore.instance
+        .collection('auta')
+        .where('userId', isEqualTo: mojeUid)
+        .limit(1)
+        .get();
     
     if (query.docs.isNotEmpty) {
       final prvniAuto = query.docs.first;
@@ -90,6 +98,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
  
   List<Widget> get _sekce => [_ukolnicek(), _gloveBox(), _spotreba()];
+  
 
   void otevritDialogNoveAuto([DocumentSnapshot? doc]) {
     TextEditingController nazevController = TextEditingController(text: doc != null ? doc['nazev'] : "");
@@ -130,7 +139,9 @@ class _MyHomePageState extends State<MyHomePage> {
                   onPressed: () async {
                     if (nazevController.text.trim().isEmpty) return;
                     if (doc == null) {
+                      String mojeUid = FirebaseAuth.instance.currentUser!.uid;
                       await FirebaseFirestore.instance.collection('auta').add({
+                        'userId': mojeUid,
                         'nazev': nazevController.text.trim(),
                         'barva': vybranaNovaBarva.value, 
                         'vytvoreno': FieldValue.serverTimestamp(),
@@ -449,7 +460,11 @@ class _MyHomePageState extends State<MyHomePage> {
               // StreamBuilder nám tady dynamicky vypíše všechna auta
               Flexible(
                 child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance.collection('auta').snapshots(),
+                  // UPRAVENO: Ptáme se jen na auta, která mají tvoje UID
+                  stream: FirebaseFirestore.instance
+                      .collection('auta')
+                      .where('userId', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
+                      .snapshots(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
